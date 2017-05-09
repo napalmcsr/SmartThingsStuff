@@ -728,7 +728,7 @@ def allzoneoffset(val){
 def tempHandler(evt){
     logger(40,"debug","tempHandler- evt name: ${evt.name}, value: ${evt.value}, state.mainOn: ${state.mainOn}" )
     state.zoneTemp = evt.value.toFloat()
-    if (state.mainOn){
+    if (state.mainOn || (state.mainFan = "on")){
     	logger(30,"debug","tempHandler- tempChange, value: ${evt.value}")
     	zoneEvaluate([msg:"temp", data:["tempChange"]])	
     }     
@@ -1161,10 +1161,20 @@ def isIntegrator(){
 //zone control methods
 def evaluateVentsOpening(){
 
-logger(40,"debug","Setting vent Params")
+	logger(10,"info","evaluateVentsOpening: Setting vent Params")
 	def mainStateLocal = state.mainState ?: ""
+	def ventmode = "none"
 	Map VentParams = [:]
-	switch (mainStateLocal){
+	logger(40,"debug","evaluateVentsOpening:mainStateLocal: ${mainStateLocal}")
+	if (mainStateLocal == "idle"){
+		if (state.mainFan == "on"){
+			ventmode = "fan only"
+		}
+	} else{
+		ventmode = mainStateLocal
+	}
+	logger(40,"debug","evaluateVentsOpening:ventmode: ${ventmode}")
+	switch (ventmode){
     	case "heat" :
 			VentParams = SetHeatVentParams()
         	break
@@ -1174,23 +1184,26 @@ logger(40,"debug","Setting vent Params")
     	case "fan only" :
 			VentParams = SetFanVentParams()
         	break
+    	case "none" :
+			VentParams = SetErrorVentParams()
+        	break
 	} 
-	logger(40,"debug","Calculate Vent Opening")
+	logger(10,"info","evaluateVentsOpening:Calculate Vent Opening")
 	CalculteVent(VentParams)
-	logger(40,"debug","Check for Vent Reductions")
-	logger(30,"warn","VentParams.ventOpening before reduction checks: ${VentParams.ventOpening}")
+	logger(10,"info","evaluateVentsOpening:Check for Vent Reductions")
+	logger(40,"debug","evaluateVentsOpening: VentParams.ventOpening before reduction checks: ${VentParams.ventOpening}")
 	CheckReductions(VentParams)
-	logger(30,"warn","VentParams.ventOpening after reduction checks: ${VentParams.ventOpening}")
-	logger(40,"debug","Set The Vent")
+	logger(40,"debug","evaluateVentsOpening:VentParams.ventOpening after reduction checks: ${VentParams.ventOpening}")
+	logger(10,"info","evaluateVentsOpening:Set The Vent")
 	setVents(VentParams.ventOpening)
 }
 
-	int tempDelta
-	int ventSlope
-	int ventIntercept
-	int maxVentOpen
-	int minVentOpen
-	int VentOpening
+//	int tempDelta
+//	int ventSlope
+//	int ventIntercept
+//	int maxVentOpen
+//	int minVentOpen
+//	int VentOpening
 
 def CalculteVent(Map VentParams){
 	if (VentParams.tempDelta<0){
@@ -1199,16 +1212,18 @@ def CalculteVent(Map VentParams){
     	
 		VentParams.ventOpening = Math.round(VentParams.tempDelta*VentParams.ventSlope+VentParams.ventIntercept)
 	}
-	logger(30,"warn","CalculteVent- VentParams.ventOpening: ${VentParams.ventOpening}")
-	logger(30,"warn","CalculteVent- VentParams.maxVentOpen: ${VentParams.maxVentOpen}")
-	logger(30,"warn","CalculteVent- VentParams.minVentOpen: ${VentParams.minVentOpen}")
+	logger(40,"debug","CalculteVent- VentParams.ventOpening: ${VentParams.ventOpening}")
+	logger(40,"debug","CalculteVent- VentParams.maxVentOpen: ${VentParams.maxVentOpen}")
+	logger(40,"debug","CalculteVent- VentParams.minVentOpen: ${VentParams.minVentOpen}")
 	if (VentParams.ventOpening>VentParams.maxVentOpen){
+		logger(30,"warn","CalculteVent- VentParams.ventOpening greater than Max")
 		VentParams.ventOpening = VentParams.maxVentOpen
 	}
 	if (VentParams.ventOpening<VentParams.minVentOpen){
+		logger(30,"warn","CalculteVent- VentParams.ventOpening less than Min")
 		VentParams.ventOpening = VentParams.minVentOpen
 	}
-	logger(30,"warn","CalculteVent- VentParams.ventOpening after limit checks: ${VentParams.ventOpening}")
+	logger(40,"debug","CalculteVent- VentParams.ventOpening after limit checks: ${VentParams.ventOpening}")
 	
 }
 def CheckReductions(Map VentParams){
@@ -1249,7 +1264,7 @@ def SetCoolVentParams(){
     state.activeSetPoint = zoneCSPLocal
 	def zoneTempLocal = state.zoneTemp
 	resultMap.tempDelta = zoneTempLocal - zoneCSPLocal
-	logger(30,"warn","CalculteVent- resultMap.tempDelta: ${resultMap.tempDelta}")
+	logger(40,"debug","CalculteVent- resultMap.tempDelta: ${resultMap.tempDelta}")
 	if (state.AggressiveTempVentCurveActive){
 	logger(40,"debug","Setting Aggressive")
 		resultMap.ventSlope = 300
@@ -1290,7 +1305,7 @@ def SetFanVentParams(){
 	Map resultMap = [:]
 	logger(40,"debug","Setting vent Params Fan")
 	def zoneTempLocal = state.zoneTemp
-	resultMap.tempDelta = zoneTempLocal
+	resultMap.tempDelta = 0.1
 	resultMap.ventSlope = 0
 	if (state.mainES == "humidifier"){
 		logger(40,"debug","Setting vent Params Humidifier")
@@ -1301,4 +1316,18 @@ def SetFanVentParams(){
 	resultMap.maxVentOpen = 100
 	resultMap.minVentOpen = settings.FanAHC.toInteger()
 	resultMap.ventOpening = 50
+	return resultMap
+}
+
+def SetErrorVentParams(){
+	Map resultMap = [:]
+	logger(40,"debug","Setting vent Params ERROR")
+	def zoneTempLocal = state.zoneTemp
+	resultMap.tempDelta = 0.1
+	resultMap.ventSlope = 0	
+	resultMap.ventIntercept = 100
+	resultMap.maxVentOpen = 100
+	resultMap.minVentOpen = 0
+	resultMap.ventOpening = 50
+	return resultMap
 }
