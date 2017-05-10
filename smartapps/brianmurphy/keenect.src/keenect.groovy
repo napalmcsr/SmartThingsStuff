@@ -511,6 +511,8 @@ def checkNotify(evt){
     state.mainES =mainES
     state.mainState = mainState
     state.mainFan = mainFan
+  logger(40,"info","checkNotify- mainFan: ${mainFan}")
+  logger(40,"info","checkNotify- state.mainFan: ${state.mainFan}")
     state.mainMode = mainMode
     if (isAC()) state.mainCSP = mainCSP
     state.mainHSP = mainHSP
@@ -584,8 +586,8 @@ if(indicators){
         logger(10,"info","write log info cycle ended")
     } 
     
-    if (mainStateChange || mainModeChange || mainCSPChange || mainHSPChange ||mainESChange){
-    	def dataSet = [msg:"stat",data:[initRequest:false,mainState:mainState,mainStateChange:mainStateChange,mainMode:mainMode,mainModeChange:mainModeChange,mainCSP:mainCSP,mainCSPChange:mainCSPChange,mainHSP:mainHSP,mainHSPChange:mainHSPChange,mainOn:mainOn,mainES:mainES]]
+    if (mainStateChange || mainModeChange || mainCSPChange || mainHSPChange||mainFanChange ||mainESChange){
+    	def dataSet = [msg:"stat",data:[initRequest:false,mainState:mainState,mainStateChange:mainStateChange,mainMode:mainMode,mainModeChange:mainModeChange,mainFan:mainFan,mainFanChange:mainFanChange,mainCSP:mainCSP,mainCSPChange:mainCSPChange,mainHSP:mainHSP,mainHSPChange:mainHSPChange,mainOn:mainOn,mainES:mainES]]
         if (dataSet == state.dataSet){
         	//dup dataset..., should never ever happen
             logger(30,"warn","duplicate dataset, zones will not be notified... dataSet: ${state.dataSet}")

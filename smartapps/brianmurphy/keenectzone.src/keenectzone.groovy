@@ -437,6 +437,8 @@ def zoneEvaluate(params){
     def mainES = state.mainES ?:""
     def mainStateLocal = state.mainState ?: ""
     def mainModeLocal = state.mainMode ?: ""
+    def mainFanChange = state.mainFanChange ?: ""
+    def mainFan = state.mainFan ?: ""
 	def mainHSPLocal = state.mainHSP  ?: 0
 	def mainCSPLocal = state.mainCSP  ?: 0
 	def mainOnLocal = state.mainOn  ?: ""
@@ -497,6 +499,13 @@ def zoneEvaluate(params){
     switch (msg){
     	case "stat" :
                 //initial request for info during app install and zone update
+                if(data.mainFan == "on"){
+                	mainFan = true
+					logger(40,"debug","mainFan is on and ${mainFan}")
+                } else{
+                	mainFan = false
+					logger(40,"debug","mainFan is off and ${mainFan}")
+                }
                 if (data.initRequest){
                 	if (!zoneDisabledLocal) evaluateVents = data.mainOn
                 //set point changes, ignore setbacks
@@ -504,15 +513,16 @@ def zoneEvaluate(params){
                     evaluateVents = true
                     logger(30,"info","zoneEvaluate- set point changes, evaluate: ${true}")
                 //system state changed
-                } else if (data.mainStateChange){
+                } else if (data.mainStateChange||data.mainFanChange){
 						//system start up
-                	if (data.mainOn && !zoneDisabledLocal){
+                        logger(10,"info","zoneEvaluate- mainFan: ${mainFan}, data.mainOn: ${data.mainOn}")  
+                	if ((mainFan||data.mainOn) && !zoneDisabledLocal){
                         evaluateVents = true
                         state.fanonly2 = false
                         logger(30,"info","zoneEvaluate- system start up, evaluate: ${evaluateVents}")
                         logger(10,"info","Main HVAC is on and ${data.mainState}ing")
 						//system shut down
-                    } else if (!data.mainOn && !zoneDisabledLocal){
+                    } else if (!mainFan&&!data.mainOn && !zoneDisabledLocal){
                     	runningLocal = false
 						def asp = state.activeSetPoint
                         if (zoneTempLocal != null && asp != null){
@@ -532,6 +542,7 @@ def zoneEvaluate(params){
                 mainES = data.mainES
                 mainStateLocal = data.mainState
                 mainModeLocal = data.mainMode
+                mainFanChange = data.mainFanChange
                 mainHSPLocal = data.mainHSP
                 mainCSPLocal = data.mainCSP
                 mainOnLocal = data.mainOn
@@ -603,6 +614,8 @@ def zoneEvaluate(params){
 	state.mainHSP = mainHSPLocal
 	state.mainCSP = mainCSPLocal
 	state.mainOn = mainOnLocal
+    state.mainFanChange = mainFanChange
+    state.mainFan =mainFan
     state.zoneCSP = zoneCSPLocal
     state.zoneHSP = zoneHSPLocal
     state.zoneTemp = zoneTempLocal
@@ -726,9 +739,9 @@ def allzoneoffset(val){
 
 
 def tempHandler(evt){
-    logger(40,"debug","tempHandler- evt name: ${evt.name}, value: ${evt.value}, state.mainOn: ${state.mainOn}" )
+    logger(40,"debug","tempHandler- evt name: ${evt.name}, value: ${evt.value}, state.mainOn: ${state.mainOn}, state.mainFan: ${state.mainFan}" )
     state.zoneTemp = evt.value.toFloat()
-    if (state.mainOn || (state.mainFan = "on")){
+    if (state.mainOn || state.mainFan){
     	logger(30,"debug","tempHandler- tempChange, value: ${evt.value}")
     	zoneEvaluate([msg:"temp", data:["tempChange"]])	
     }     
@@ -1166,8 +1179,9 @@ def evaluateVentsOpening(){
 	def ventmode = "none"
 	Map VentParams = [:]
 	logger(40,"debug","evaluateVentsOpening:mainStateLocal: ${mainStateLocal}")
+	logger(40,"debug","evaluateVentsOpening:state.mainFan: ${state.mainFan}")
 	if (mainStateLocal == "idle"){
-		if (state.mainFan == "on"){
+		if (state.mainFan){
 			ventmode = "fan only"
 		}
 	} else{
