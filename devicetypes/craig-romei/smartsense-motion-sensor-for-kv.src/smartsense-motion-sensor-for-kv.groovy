@@ -90,7 +90,14 @@ metadata {
 
 def parse(String description) {
 	log.debug "description: $description"
-	Map map = zigbee.getEvent(description)
+    if (description?.startsWith('temperature')){
+		log.debug "get Temperature results"
+		Map map = parseCustomMessage(description)
+    } else{
+		log.debug "DONT get Temperature results"
+		Map map = zigbee.getEvent(description)
+  	}
+	log.debug "map: $map"
 	if (!map) {
 		if (description?.startsWith('zone status')) {
 			map = parseIasMessage(description)
@@ -123,7 +130,44 @@ def parse(String description) {
 	}
 	return result
 }
+private Map parseCustomMessage(String description) {
+    Map resultMap = [:]
+    if (description?.startsWith('temperature: ')) {
+        def value = Double.parseDouble(description.split(": ")[1])
+        resultMap = makeTemperatureResult(convertTemperature(value))
+    }
+    return resultMap
+}
 
+private Map makeTemperatureResult(value) {
+	
+	def linkText = getLinkText(device)
+	if (tempOffset) {
+		//def offset = tempOffset.toBigDecimal()
+		//def v = value 
+		value = value + tempOffset.toBigDecimal()
+	}
+    log.debug "makeTemperatureResult:${value}"
+	def descriptionText = "${linkText} was ${value}°${temperatureScale}"
+	return [
+		name: 'temperature',
+		value: value,
+		descriptionText: descriptionText
+	]
+    
+}
+
+private def convertTemperature(celsius) {
+    // log.debug "convertTemperature()"
+
+    if(getTemperatureScale() == "C"){
+        return celsius
+    } else {
+        def fahrenheit = Math.round(celsiusToFahrenheit(celsius) * 100) /100
+        // log.debug "converted to F: ${fahrenheit}"
+        return fahrenheit
+    }
+}
 private Map parseIasMessage(String description) {
 	ZoneStatus zs = zigbee.parseZoneStatus(description)
 
