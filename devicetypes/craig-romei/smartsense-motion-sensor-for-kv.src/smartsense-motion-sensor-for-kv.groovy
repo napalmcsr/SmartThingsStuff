@@ -99,7 +99,6 @@ def parse(String description) {
 	if (!map) {
 		if (description?.startsWith('zone status')) {
 			map = parseIasMessage(description)
-			log.debug "zone status map: $map"
 		} else {
 			Map descMap = zigbee.parseDescriptionAsMap(description)
 			if (descMap?.clusterInt == 0x0001 && descMap.commandInt != 0x07 && descMap?.value) {
