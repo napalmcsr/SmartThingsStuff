@@ -90,17 +90,16 @@ metadata {
 
 def parse(String description) {
 	log.debug "description: $description"
+    Map map =[:]
     if (description?.startsWith('temperature')){
-		log.debug "get Temperature results"
-		Map map = parseCustomMessage(description)
+		map = parseCustomMessage(description)
     } else{
-		log.debug "DONT get Temperature results"
-		Map map = zigbee.getEvent(description)
+		map = zigbee.getEvent(description)
   	}
-	log.debug "map: $map"
 	if (!map) {
 		if (description?.startsWith('zone status')) {
 			map = parseIasMessage(description)
+			log.debug "zone status map: $map"
 		} else {
 			Map descMap = zigbee.parseDescriptionAsMap(description)
 			if (descMap?.clusterInt == 0x0001 && descMap.commandInt != 0x07 && descMap?.value) {
@@ -170,9 +169,8 @@ private def convertTemperature(celsius) {
 }
 private Map parseIasMessage(String description) {
 	ZoneStatus zs = zigbee.parseZoneStatus(description)
-
-	// Some sensor models that use this DTH use alarm1 and some use alarm2 to signify motion
-	return (zs.isAlarm1Set() || zs.isAlarm2Set()) ? getMotionResult('active') : getMotionResult('inactive')
+	Map RetMap = (zs.isAlarm1Set() || zs.isAlarm2Set()) ? getMotionResult('active') : getMotionResult('inactive')
+	return RetMap
 }
 
 private Map getBatteryResult(rawValue) {
