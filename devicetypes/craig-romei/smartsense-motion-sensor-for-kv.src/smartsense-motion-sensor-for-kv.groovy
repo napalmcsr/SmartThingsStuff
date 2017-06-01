@@ -83,7 +83,7 @@ metadata {
 			state "default", action: "refresh.refresh", icon: "st.secondary.refresh"
 		}
 
-		main(["motion", "temperature"])
+		main(["temperature"])
 		details(["motion", "temperature", "battery", "refresh"])
 	}
 }
