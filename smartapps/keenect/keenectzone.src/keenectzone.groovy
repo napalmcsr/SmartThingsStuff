@@ -1,4 +1,5 @@
  /*
+ *V3.0.0 Remove Ecobee Specific/Add mode control/Simplify code
  *V2.8.5 Changed code to use data maps and smaller functions
  *V2.8.4 bug fix for vent name setup error
  *V2.8.3 bug fix for return air vents
@@ -67,14 +68,14 @@ state.acactive = false
 
 def updated() {
 	log.debug "Updated with settings: ${settings}"
-    state.vChild = "2.8.5"
+    state.vChild = "3.0.0"
     unsubscribe()
 	initialize()
     
 }
 
 def initialize() {
-	state.vChild = "2.8.5"
+	state.vChild = "3.0.0"
    // state?.integrator= 0 
     parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", tempHandler)
@@ -254,7 +255,7 @@ def main(){
             	)
                 input "modes", "mode", title: "select a mode(s)", multiple: true
                 }
-                  section("Optional Thermostat Zone Control, Ecobee Only"){
+ /*                  section("Optional Thermostat Zone Control, Ecobee Only"){
                  def ecobeePrograms = parent.selectProgram()
           	log.debug "programs: $ecobeePrograms"
             def ecobeeProgramshold =[["Custom":"Zone enable during hold"],["None":"Zone disabled during hold"]]
@@ -266,6 +267,7 @@ def main(){
      			input "climate5", "enum", title: "Thermostat hold zone control", options: ecobeeProgramshold, required: false
                 
             }
+*/
             section("Advanced"){
 				def afDesc = "\t" + getTitle("AggressiveTempVentCurve") + "\n\t" + getTitle("ventCloseWait") + "\n\t" /*+ getTitle("zoneControlSwitchSummary")*/ + "\n\t" + getTitle("logLevelSummary") + /*"\n\t" + getTitle("isIntegrator") +*/ "\n\t" + getTitle("sendEventsToNotificationsSummary") + "\n\t" + getTitle("pressureControl")
                 href( "advanced"
@@ -424,7 +426,7 @@ def zonecontrol(){
 	   
 //zone control methods
 def zoneEvaluate(params){
-	zonecontrol()
+	//zonecontrol()
 	//settings.logLevel=40
 	settings.zoneControlSwitch = 40
 	state.vChild = "2.4"
@@ -868,10 +870,10 @@ def setVents(newVo){
 }
 
 def ventcheck(){
-	if (state.enabled == true){
+	//if (state.enabled == true){
 		def newVo=state.ventcheck
 		setVents(newVo)
-	}
+	//}
 }
 
 def setRVents(newVo){
@@ -929,10 +931,10 @@ def setRVents(newVo){
 }
 
 def Rventcheck(evt){
-	if (state.enabled == true){
+	//if (state.enabled == true){
 		def newVo=state.Rventcheck
 		setRVents(newVo)
-	}
+	//}
 }
 
 

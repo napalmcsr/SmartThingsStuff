@@ -1,4 +1,5 @@
 /**
+ *  V3.0.0 Change control algo to use a single map and control/add mode control/start remove ecobee specific
  *	V2.7.0 Add humidifer fan control feature
  *	V2.6.0 equipment status for humidifier 
  *  V2.5.1 Fixed missing indicator issue
@@ -58,7 +59,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vParent = "2.7"
+	state.vParent = "3.0"
 	state.etf = app.id == '07d1abe4-352f-441e-a6bd-681929b217e4' //5
 	
     //subscribe(tStat, "thermostatSetpoint", notifyZones) doesn't look like we need to use this
@@ -108,7 +109,7 @@ def nighthandler(evt){
 }
 /* page methods	* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 def main(){
-state.vParent = "2.7"
+state.vParent = "3.0"
 	def installed = app.installationState == "COMPLETE"
 	return dynamicPage(
     	name		: "main"
@@ -431,6 +432,7 @@ def getReport(rptName){
 // main methods
 def checkNotify(evt){
     logger(40,"debug","checkNotify:enter- ")
+    logger(40,"debug","checkNotify:evt: ${evt}")
 	def tempStr = ''
     def tempFloat = 0.0
     def tempBool = false
@@ -611,21 +613,6 @@ if(indicators){
         }
     }
     logger(40,"debug","checkNotify:exit- ")
-}
-
-def notifyZone(){
-	//initial data request for new zone
-    logger(10,"info", "Zone notification now")
-    def mainState = getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
-    def mainES = getNormalizedOSES(tStat.currentValue("equipmentStatus"))
-    def mainMode = getNormalizedOS(tStat.currentValue("thermostatMode"))
-    def mainCSP 
-    if (isAC()) mainCSP = tStat.currentValue("coolingSetpoint").toFloat()
-    def mainHSP = tStat.currentValue("heatingSetpoint").toFloat()
-    def mainOn = mainState != "idle"
-	def dataSet = [msg:"stat",data:[initRequest:true,mainState:mainState,mainMode:mainMode,mainCSP:mainCSP,mainHSP:mainHSP,mainOn:mainOn,mainES:mainES]]
-    logger(10,"debug","notifyZone:enter- map:${dataSet}")
-    return dataSet
 }
 
 def notifyZones(altDS){
