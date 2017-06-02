@@ -73,9 +73,20 @@ metadata {
 
 def parse(String description) {
 	log.debug "description: $description"
-
-	// getEvent will handle temperature and humidity
-	Map map = zigbee.getEvent(description)
+    Map map =[:]
+    if (description?.startsWith('read attr')){
+    	Map TempMap = zigbee.parseDescriptionAsMap(description)
+        if ((TempMap.cluster=="FC45")&&((TempMap.size=="0A")||(TempMap.size=="0C"))){
+		log.debug "Temp Humidity: ${Integer.parseInt(TempMap.value,16)/100.0}"
+        map.name="humidity"
+        map.value=Integer.parseInt(TempMap.value,16)/100.0
+        map.unit="%"
+        }
+    }else
+    {
+        // getEvent will handle temperature
+        map = zigbee.getEvent(description)
+    }
 	if (!map) {
 		Map descMap = zigbee.parseDescriptionAsMap(description)
 		if (descMap.clusterInt == 0x0001 && descMap.commandInt != 0x07 && descMap?.value) {
@@ -130,9 +141,9 @@ def refresh() {
 			zigbee.readAttribute(0xFC45, 0x0000, ["mfgCode": 0xC2DF]) +   // Original firmware
 			zigbee.readAttribute(zigbee.TEMPERATURE_MEASUREMENT_CLUSTER, 0x0000) +
 			zigbee.readAttribute(zigbee.POWER_CONFIGURATION_CLUSTER, 0x0020) +
-			zigbee.configureReporting(0xFC45, 0x0000, DataType.FLOAT4, 30, 300, 10) +
 			zigbee.batteryConfig() +
-			zigbee.temperatureConfig(30, 300)
+			zigbee.temperatureConfig(30, 300) +
+			zigbee.configureReporting(0xFC45, 0x0000, DataType.FLOAT4, 10, 100, 1) 
 }
 
 def configure() {
