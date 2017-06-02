@@ -856,9 +856,18 @@ def selectProgram(none) {
     //	child.zoneClimate(ecobeePrograms)
     
     return (ecobeePrograms)
-
-
-
-
-	
 }
+def GetMasterData(){
+ 	//initial data request for new zone
+     logger(10,"info", "Zone notification now")
+     def mainState = getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
+     def mainES = getNormalizedOSES(tStat.currentValue("equipmentStatus"))
+     def mainMode = getNormalizedOS(tStat.currentValue("thermostatMode"))
+     def mainCSP 
+     if (isAC()) mainCSP = tStat.currentValue("coolingSetpoint").toFloat()
+     def mainHSP = tStat.currentValue("heatingSetpoint").toFloat()
+     def mainOn = mainState != "idle"
+ 	def dataSet = [msg:"stat",data:[initRequest:true,mainState:mainState,mainMode:mainMode,mainCSP:mainCSP,mainHSP:mainHSP,mainOn:mainOn,mainES:mainES]]
+     logger(10,"debug","notifyZone:enter- map:${dataSet}")
+     return dataSet
+ }

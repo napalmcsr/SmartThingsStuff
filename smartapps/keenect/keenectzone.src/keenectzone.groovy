@@ -77,15 +77,20 @@ def updated() {
 def initialize() {
 	state.vChild = "3.0.0"
    // state?.integrator= 0 
+   log.debug("init")
     parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", tempHandler)
     subscribe(vents, "level", levelHandler)
     //subscribe(zoneControlSwitch,"switch",zoneDisableHandeler)
     //subscribe(zoneindicateoffsetSwitch,"switch",allzoneoffset)
 	//subscribe(zoneneedoffsetSwitch,"switch",allzoneoffset)
+   log.debug("isAC")
     state.isAC = parent.isAC() //AC enable bits
+    
+   log.debug("AC")
    	//fetchZoneControlState()
-    zoneEvaluate(parent.notifyZone())
+    zoneEvaluate(parent.GetMasterData())
+   log.debug("Done Init")
 }
 
 //dynamic page methods
@@ -1246,9 +1251,6 @@ def CalculteVent(Map VentParams){
     	
 		VentParams.ventOpening = Math.round(VentParams.tempDelta*VentParams.ventSlope+VentParams.ventIntercept)
 	}
-	logger(40,"debug","CalculteVent- VentParams.ventOpening: ${VentParams.ventOpening}")
-	logger(40,"debug","CalculteVent- VentParams.maxVentOpen: ${VentParams.maxVentOpen}")
-	logger(40,"debug","CalculteVent- VentParams.minVentOpen: ${VentParams.minVentOpen}")
 	if (VentParams.ventOpening>VentParams.maxVentOpen){
 		logger(30,"warn","CalculteVent- VentParams.ventOpening greater than Max")
 		VentParams.ventOpening = VentParams.maxVentOpen
