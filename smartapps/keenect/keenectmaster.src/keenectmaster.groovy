@@ -59,7 +59,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vParent = "3.0"
+	state.vParent = "3.1"
 	state.etf = app.id == '07d1abe4-352f-441e-a6bd-681929b217e4' //5
 	
     //subscribe(tStat, "thermostatSetpoint", notifyZones) doesn't look like we need to use this
@@ -109,7 +109,7 @@ def nighthandler(evt){
 }
 /* page methods	* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 def main(){
-state.vParent = "3.0"
+state.vParent = "3.1"
 	def installed = app.installationState == "COMPLETE"
 	return dynamicPage(
     	name		: "main"
@@ -244,25 +244,6 @@ def advanced(){
                         ,submitOnChange	: false
             		)
                     }
-                   /*     input(
-            			name			: "ReturnVents"
-                		,title			: "Optional Return air vents to open during heating"
-                		,multiple		: true
-                		,required		: false
-                		,type			: "capability.switchLevel"
-                        ,submitOnChange	: false
-            		)
-                    
-   
-        
-                    input(
-            		name			: "nightmode"
-                	,title			: "Optional input Virtual Switch to indicate day or night for return vents on/off"
-                	,multiple		: false
-                	,required		: false
-                	,type			: "capability.switch"
-                    ,submitOnChange	: true
-                )*/
  			input(
             	name			: "setVo"
                	,title			: "Force vent opening to:"
@@ -340,14 +321,6 @@ def reporting(){
 					,state		: null
 					,params		: [rptName:report]
 				)  
-          /*  report = "Integrator"
-                href( "report"
-					,title		: report
-					,description: ""
-					,state		: null
-					,params		: [rptName:report]
-				) 
-                */
             }
    }
 }
@@ -391,10 +364,6 @@ def getReport(rptName){
     	cMethod = "getZoneConfig"
      //   reports = "Main system:\n\tstate: ${state.mainState}\n\tmode: ${state.mainMode}\n\tcurrent temp: ${tempStr(t)}${cspStr}\n\theating set point: ${tempStr(state.mainHSP)}\n\n"
     }  
-        if (rptName == "Integrator"){
-    	standardReport = true
-    	cMethod = "getZoneInt"
-    }
     
     
     if (rptName == "Last results"){
@@ -447,10 +416,6 @@ def checkNotify(evt){
     def mainStateChange = mainState != tempStr
     mainState = tempStr
     logger(40,"info","checkNotify- mainState: ${mainState}, mainStateChange: ${mainStateChange}")
-       // state.mainFan = state.mainFan ?: tStat.currentValue("thermostatFanMode")
-        
-      // thermostat equipment state
-      
    tempStr = getNormalizedOSES(tStat.currentValue("equipmentStatus"))
    def mainES = state.mainES
    def mainESChange = mainES != tempStr
@@ -480,7 +445,6 @@ def checkNotify(evt){
 		tempFloat = tStat.currentValue("coolingSetpoint").toFloat()
     	mainCSP = state.mainCSP
     	mainCSPChange = mainCSP != tempFloat
-    	//is setback? new csp > old csp
     	isSetback = tempFloat > mainCSP
     	mainCSP = tempFloat
     	logger(40,"info","checkNotify- mainCSP: ${mainCSP}, mainCSPChange: ${mainCSPChange}")
@@ -490,7 +454,6 @@ def checkNotify(evt){
 	tempFloat = tStat.currentValue("heatingSetpoint").toFloat()
     def mainHSP = state.mainHSP
     def mainHSPChange = mainHSP != tempFloat
-    //is setback? new hsp < old hsp
     isSetback = tempFloat < mainHSP
     mainHSP = tempFloat
     logger(40,"info","checkNotify- mainHSP: ${mainHSP}, mainHSPChange: ${mainHSPChange}")
@@ -499,13 +462,6 @@ def checkNotify(evt){
    if (mainState == "fan only"){
    mainOn = true
    }
-   // logger(10,"info","checkNotify- mainOn: ${mainOn}")
-   // logger(10,"info","checkNotify- before mainFan: ${mainFan}")
-    
- //def mainFanOn = mainFan != "auto"
-  // def mainOn = "False"
-  //  if (mainState != "idle" || mainState !="fan only"){
- //  mainOn = "True"}
     
     logger(40,"info","checkNotify- mainState: ${mainState}")
   logger(40,"info","checkNotify- mainOn: ${mainOn}")
@@ -543,14 +499,12 @@ def checkNotify(evt){
 ACind.on()
 }
 
-//ReturnVents.setLevel(0)
     }
     if(mainState == "heat"){
 if(indicators){
     Heatind.on()
     }
          if(state.night == false){
-       //ReturnVents.setLevel(100)
         }
     }
     if(mainState == "fan only"){
@@ -561,7 +515,6 @@ if(indicators){
     }
         if(state.cool == false){
  if(state.night == false){
-     //  ReturnVents.setLevel(100)
         }
        }
       
@@ -839,24 +792,7 @@ def getTitle(name){
 	}
     return title
 }
-def currentprogram(none){
-//log.debug "${none}"
-def ecobeePrograms = tStat.currentprogramNameForUI.toString().minus('[').minus(']')
-//	log.info "programs: ${ecobeePrograms}"
 
-
-return (ecobeePrograms)
-}
-
-def selectProgram(none) {
-//log.debug "${none}"
-	def ecobeePrograms = tStat.currentClimateList.toString().minus('[').minus(']').tokenize(',')
-	//log.debug "programs: $ecobeePrograms"
-    //childApps.each {child ->
-    //	child.zoneClimate(ecobeePrograms)
-    
-    return (ecobeePrograms)
-}
 def GetMasterData(){
  	//initial data request for new zone
      logger(10,"info", "Zone notification now")

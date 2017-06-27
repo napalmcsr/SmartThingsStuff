@@ -54,48 +54,40 @@ preferences {
 
 def installed() {
 	log.debug "Installed with settings: ${settings}"
-settings.minVo = 0
-settings.maxVo = 100
-settings.minVoC = 0
-settings.maxVoC = 100
-settings.FanVoC = 100
-settings.FanAHC = 100
-settings.coolOffset = 0
-settings.staticCSP = 70
-state?.integrator= 0 
-state.acactive = false
+    settings.minVo = 0
+    settings.maxVo = 100
+    settings.minVoC = 0
+    settings.maxVoC = 100
+    settings.FanVoC = 100
+    settings.FanAHC = 100
+    settings.coolOffset = 0
+    settings.staticCSP = 70
+    state?.integrator= 0 
+    state.acactive = false
 }
 
 def updated() {
 	log.debug "Updated with settings: ${settings}"
-    state.vChild = "3.0.0"
+    state.vChild = "3.1.0"
     unsubscribe()
 	initialize()
     
 }
 
 def initialize() {
-	state.vChild = "3.0.0"
-   // state?.integrator= 0 
-   log.debug("init")
+    state.vChild = "3.1.0"
+    log.debug("init")
     parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", tempHandler)
     subscribe(vents, "level", levelHandler)
-    //subscribe(zoneControlSwitch,"switch",zoneDisableHandeler)
-    //subscribe(zoneindicateoffsetSwitch,"switch",allzoneoffset)
-	//subscribe(zoneneedoffsetSwitch,"switch",allzoneoffset)
-   log.debug("isAC")
+    log.debug("isAC")
     state.isAC = parent.isAC() //AC enable bits
-    
-   log.debug("AC")
-   	//fetchZoneControlState()
     zoneEvaluate(parent.GetMasterData())
-   log.debug("Done Init")
+    log.debug("Done Init")
 }
 
 //dynamic page methods
 def main(){
-	//state.etf = parent.getID()
 	def installed = app.installationState == "COMPLETE"
     state.outputreduction =false
    
@@ -259,22 +251,19 @@ def main(){
                     ,submitOnChange : true
             	)
                 input "modes", "mode", title: "select a mode(s)", multiple: true
+                input(
+            			name			: "OutofModeVO"
+                		,title			: "Percent open for the vent when not in Mode"
+                		,multiple		: false
+                		,required		: false
+                		,type			: "enum"
+                    	,options 		: FANoptions()
+                    	,defaultValue	: "10"
+                    	,submitOnChange	: false
+            		) 
                 }
- /*                  section("Optional Thermostat Zone Control, Ecobee Only"){
-                 def ecobeePrograms = parent.selectProgram()
-          	log.debug "programs: $ecobeePrograms"
-            def ecobeeProgramshold =[["Custom":"Zone enable during hold"],["None":"Zone disabled during hold"]]
-
-     			input "climate1", "enum", title: "Ecobee climate for Zone control", options: ecobeePrograms, required: false
-     			input "climate2", "enum", title: "Additional Ecobee climates", options: ecobeePrograms, required: false
-     			input "climate3", "enum", title: "Additional Ecobee climates", options: ecobeePrograms, required: false
-     			input "climate4", "enum", title: "Additional Ecobee climates", options: ecobeePrograms, required: false
-     			input "climate5", "enum", title: "Thermostat hold zone control", options: ecobeeProgramshold, required: false
-                
-            }
-*/
             section("Advanced"){
-				def afDesc = "\t" + getTitle("AggressiveTempVentCurve") + "\n\t" + getTitle("ventCloseWait") + "\n\t" /*+ getTitle("zoneControlSwitchSummary")*/ + "\n\t" + getTitle("logLevelSummary") + /*"\n\t" + getTitle("isIntegrator") +*/ "\n\t" + getTitle("sendEventsToNotificationsSummary") + "\n\t" + getTitle("pressureControl")
+				def afDesc = "\t" + getTitle("AggressiveTempVentCurve") + "\n\t" + getTitle("ventCloseWait") + "\n\t" + getTitle("logLevelSummary") + "\n\t" + getTitle("sendEventsToNotificationsSummary") + "\n\t" + getTitle("pressureControl")
                 href( "advanced"
                     ,title			: ""
 					,description	: "Settings"
@@ -285,7 +274,6 @@ def main(){
 }
 
 def advanced(){
-	//state?.integrator =0
     def pEnabled = false
     try{ pEnabled = parent.hasPressure() }
     catch(e){}
@@ -333,14 +321,7 @@ def advanced(){
                 	,submitOnChange	: true
                    	,defaultValue	: "-1"
             	)
-              /*  input(
-            		name			: "zoneControlSwitch"
-                	,title			: getTitle("zoneControlSwitch") 
-                	,multiple		: false
-                	,required		: false
-                	,type			: "capability.switch"
-                    ,submitOnChange	: true
-                )*/
+
                    
          		input(
             		name			: "logLevel"
@@ -352,26 +333,6 @@ def advanced(){
                 	,submitOnChange	: false
                    	,defaultValue	: "10"
             	)            
-          		/*	def iintTitle = ""
-                    if (isIntegrator()) iintTitle = "BETA Zone Integration On Integrator = ${state.integrator}"
-                    else {iintTitle = "BETA Zone Integration Off Integrator = ${state.integrator}"
-                    state?.integrator =0}
-                    
-          			input(
-            			name			: "isIntegrator"
-               			,title			: iintTitle 
-               			,multiple		: false
-               			,required		: true
-               			,type			: "bool"
-                		,submitOnChange	: true
-                		,defaultValue	: true
-            		)
-                
-                
-                if (isIntegrator== false) state?.integrator= 0 
-                
-                
-                */
                 
                 input(
             		name			: "sendEventsToNotifications"
@@ -402,39 +363,11 @@ def zoneClimate(ecobeePrograms){
 	state.ecobeeprograms= ecobeePrograms
 }
 
-def zonecontrol(){
-	state.currentprogram = parent.currentprogram()
-	def statehold = state.enabled ?:false
-	//state.currentprogram="Home"
-	if (climate1 || climate5){
-		log.info "currentprogram = ${state.currentprogram}"
-		if(state.currentprogram == climate1 || state.currentprogram == climate2 || state.currentprogram == climate3 || state.currentprogram == climate4|| state.currentprogram == climate5){
-			state.enabled= true
-			state.zoneDisabled = false
-			log.info "climate enabled ${state.enabled}"
-		}else {
-			state.enabled = false
-			state.zoneDisabled = true
-			log.info "climate disabled ${state.enabled}"
-		}
-	}else{
-		log.info "Zone is enabled no zone climate selected always enabled"
-		state.enabled= true
-		state.zoneDisabled = false
-	}
-	if (statehold != state.enabled){
-		log.info "Zone is enabled ${state.enabled} via: [${state.currentprogram}]"
-		zoneEvaluate([msg:"zoneSwitch"])
-	}else { log.info "no change in state"
-	}
-}
 	   
 //zone control methods
 def zoneEvaluate(params){
-	//zonecontrol()
 	//settings.logLevel=40
 	settings.zoneControlSwitch = 40
-	state.vChild = "2.4"
 	logger(40,"debug","zoneEvaluate:enter-- parameters: ${params}")
 	if (isIntegrator== false) state?.integrator= 0 
     // variables
@@ -1303,10 +1236,10 @@ def SetCoolVentParams(){
 	logger(40,"debug","CalculteVent- resultMap.tempDelta: ${resultMap.tempDelta}")
 	if (state.AggressiveTempVentCurveActive){
 	logger(40,"debug","Setting Aggressive")
-		resultMap.ventSlope = 300
+		resultMap.ventSlope = 200
 		resultMap.ventIntercept = 60
 	} else{
-		resultMap.ventSlope = 150
+		resultMap.ventSlope = 100
 		resultMap.ventIntercept = 30
 	}
 	resultMap.maxVentOpen = settings.maxVoC.toInteger()
@@ -1378,7 +1311,7 @@ def SetOutofModeVentParams(){
 	def zoneTempLocal = state.zoneTemp
 	resultMap.tempDelta = 0.1
 	resultMap.ventSlope = 0	
-	resultMap.ventIntercept = 10
+	resultMap.ventIntercept = settings.OutofModeVO.toInteger()
 	resultMap.maxVentOpen = 100
 	resultMap.minVentOpen = 0
 	resultMap.ventOpening = 50
