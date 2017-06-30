@@ -64,6 +64,8 @@ def installed() {
     settings.staticCSP = 70
     state?.integrator= 0 
     state.acactive = false
+    state.LocalTstatHSP = 50
+    state.LocalTstatCSP = 100
 }
 
 def updated() {
@@ -79,6 +81,10 @@ def initialize() {
     log.debug("init")
     parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", tempHandler)
+    if (zoneControlType == "thermostat"){
+        subscribe(LocaltStat, "heatingSetpoint", setTstatHSP)
+        subscribe(LocaltStat, "coolingSetpoint", setTstatCSP)
+    }
     subscribe(vents, "level", levelHandler)
     log.debug("isAC")
     state.isAC = parent.isAC() //AC enable bits
@@ -133,57 +139,73 @@ def main(){
                     ,multiple		: false
                     ,required		: true
                     ,type			: "enum"
-                    ,options		: [["offset":"Offset from Main set point"],["fixed":"Fixed"]]
+                    ,options		: [["offset":"Offset from Main set point"],["fixed":"Fixed"],["thermostat":"Use a simulated thermostat"]]
                     ,defaultValue	: "offset"
                     ,submitOnChange	: true
                 )
-                if (zoneControlType == "offset"){
-					input(
-            			name			: "heatOffset"
-                		,title			: "Heating offset, (above or below main thermostat)"
-                		,multiple		: false
-                		,required		: false
-                		,type			: "enum"
-                    	,options 		: zoneTempOptions()
-                    	,defaultValue	: "0"
-                    	,submitOnChange	: false
-            		) 
-                    if (parent.isAC()){
-						input(
-            				name			: "coolOffset"
-                			,title			: "Cooling offset, (above or below main thermostat)"
-                			,multiple		: false
-                			,required		: false
-                			,type			: "enum"
-                    		,options 		: zoneTempOptions()
-                    		,defaultValue	: "0"
-                    		,submitOnChange	: false
-            			)
-                     }
-                } else {
-                	input(
-            			name			: "staticHSP"
-                		,title			: "Heating set point"
-                		,multiple		: false
-                		,required		: false
-                		,type			: "enum"
-                    	,options 		: zoneFixedOptions()
-                    	,defaultValue	: "70"
-                    	,submitOnChange	: false
-            		) 
-                    if (parent.isAC()){
-                    	input(
-            				name			: "staticCSP"
-                			,title			: "Cooling set point"
-                			,multiple		: false
-                			,required		: false
-                			,type			: "enum"
-                    		,options 		: zoneFixedOptions()
-                    		,defaultValue	: "70"
-                    		,submitOnChange	: false
-                        )
-                    }             
-                }
+                switch (zoneControlType){
+                    case "offset" :
+                        input(
+                            name			: "heatOffset"
+                            ,title			: "Heating offset, (above or below main thermostat)"
+                            ,multiple		: false
+                            ,required		: false
+                            ,type			: "enum"
+                            ,options 		: zoneTempOptions()
+                            ,defaultValue	: "0"
+                            ,submitOnChange	: false
+                        ) 
+                        if (parent.isAC()){
+                            input(
+                                name			: "coolOffset"
+                                ,title			: "Cooling offset, (above or below main thermostat)"
+                                ,multiple		: false
+                                ,required		: false
+                                ,type			: "enum"
+                                ,options 		: zoneTempOptions()
+                                ,defaultValue	: "0"
+                                ,submitOnChange	: false
+                            )
+                         }
+                        break
+                    case "fixed" :
+                        input(
+                            name			: "staticHSP"
+                            ,title			: "Heating set point"
+                            ,multiple		: false
+                            ,required		: false
+                            ,type			: "enum"
+                            ,options 		: zoneFixedOptions()
+                            ,defaultValue	: "70"
+                            ,submitOnChange	: false
+            			) 
+                    	if (parent.isAC()){
+                    		input(
+                                name			: "staticCSP"
+                                ,title			: "Cooling set point"
+                                ,multiple		: false
+                                ,required		: false
+                                ,type			: "enum"
+                                ,options 		: zoneFixedOptions()
+                                ,defaultValue	: "70"
+                                ,submitOnChange	: false
+                            )
+                        } 
+                        break
+                    case "thermostat" :
+                        input(
+                        name			: "LocaltStat"
+                        ,title			: "Zone Thermostat"
+                        ,multiple		: false
+                        ,required		: true
+                        ,type			: "capability.thermostat"
+                        ,submitOnChange	: false
+                    )
+                        break
+              	}
+                
+                	            
+                
 				input(
             		name			: "minVo"
                 	,title			: "Heat minimum vent opening"
@@ -250,17 +272,32 @@ def main(){
                     ,defaultValue : "50"
                     ,submitOnChange : true
             	)
-                input "modes", "mode", title: "select a mode(s)", multiple: true
-                input(
-            			name			: "OutofModeVO"
-                		,title			: "Percent open for the vent when not in Mode"
-                		,multiple		: false
-                		,required		: false
-                		,type			: "enum"
-                    	,options 		: FANoptions()
-                    	,defaultValue	: "10"
-                    	,submitOnChange	: false
-            		) 
+                
+                
+
+          			input(
+            			name			: "RunInAllModes"
+               			,title			: "Run for all modes" 
+               			,multiple		: false
+               			,required		: true
+               			,type			: "bool"
+                		,submitOnChange	: true
+                		,defaultValue	: true
+            		)   
+                
+                    if(!RunInAllModes){
+                        input "modes", "mode", title: "select a mode(s)", multiple: true
+                        input(
+                                name			: "OutofModeVO"
+                                ,title			: "Percent open for the vent when not in Mode"
+                                ,multiple		: false
+                                ,required		: false
+                                ,type			: "enum"
+                                ,options 		: FANoptions()
+                                ,defaultValue	: "10"
+                                ,submitOnChange	: false
+                        ) 
+                  	}
                 }
             section("Advanced"){
 				def afDesc = "\t" + getTitle("AggressiveTempVentCurve") + "\n\t" + getTitle("ventCloseWait") + "\n\t" + getTitle("logLevelSummary") + "\n\t" + getTitle("sendEventsToNotificationsSummary") + "\n\t" + getTitle("pressureControl")
@@ -1130,7 +1167,7 @@ def evaluateVentsOpening(){
 	} else{
 		ventmode = mainStateLocal
 	}
-    if (allModes.contains(location.mode)) {
+    if (settings.RunInAllModes||allModes.contains(location.mode)) {
 		logger(40,"debug","in mode")
     } else {
     	logger(40,"debug","not in mode")
@@ -1229,11 +1266,23 @@ def SetCoolVentParams(){
 	Map resultMap = [:]
 	logger(40,"debug","Setting vent Params Cool")
 	def mainCSPLocal = state.mainCSP  ?: 0
-	def zoneCSPLocal = mainCSPLocal + settings.coolOffset.toInteger()
+	def zoneCSPLocal = mainCSPLocal
+    switch (zoneControlType){
+    	case "offset" :
+			zoneCSPLocal = zoneCSPLocal + settings.coolOffset.toInteger()
+        	break
+    	case "fixed" :
+			zoneCSPLocal = settings.staticCSP.toInteger()
+        	break
+    	case "thermostat" :
+			zoneCSPLocal = state.LocalTstatCSP.toInteger()
+        	break
+        }
+	logger(40,"debug","SetCoolVentParams- zoneCSPLocal: ${zoneCSPLocal}")
     state.activeSetPoint = zoneCSPLocal
 	def zoneTempLocal = state.zoneTemp
 	resultMap.tempDelta = zoneTempLocal - zoneCSPLocal
-	logger(40,"debug","CalculteVent- resultMap.tempDelta: ${resultMap.tempDelta}")
+	logger(40,"debug","SetCoolVentParams- resultMap.tempDelta: ${resultMap.tempDelta}")
 	if (state.AggressiveTempVentCurveActive){
 	logger(40,"debug","Setting Aggressive")
 		resultMap.ventSlope = 200
@@ -1253,7 +1302,18 @@ def SetHeatVentParams(){
 	Map resultMap = [:]
 	logger(40,"debug","Setting vent Params Heat")
 	def mainHSPLocal = state.mainHSP  ?: 0
-	def zoneHSPLocal = mainHSPLocal + settings.heatOffsetOffset.toInteger()
+	def zoneHSPLocal = mainHSPLocal 
+    switch (zoneControlType){
+    	case "offset" :
+			zoneHSPLocal = zoneHSPLocal + settings.heatOffsetOffset.toInteger()
+        	break
+    	case "fixed" :
+			zoneHSPLocal = settings.staticHSP.toInteger()
+        	break
+    	case "thermostat" :
+			zoneHSPLocal = state.LocalTstatHSP.toInteger()
+        	break
+        }
     state.activeSetPoint = zoneHSPLocal
 	def zoneTempLocal = state.zoneTemp
 	resultMap.tempDelta = zoneHSPLocal - zoneTempLocal
@@ -1317,4 +1377,13 @@ def SetOutofModeVentParams(){
 	resultMap.ventOpening = 50
 	resultMap.allowReduction = false
 	return resultMap
+}
+def setTstatHSP(evt){
+	logger(40,"debug","setTstatHSP- evt name: ${evt.name}, value: ${evt.value}")
+    state.LocalTstatHSP = evt.value
+    
+}
+def setTstatCSP(evt){
+	logger(40,"debug","setTstatHSP- evt name: ${evt.name}, value: ${evt.value}")
+    state.LocalTstatCSP = evt.value
 }
