@@ -66,6 +66,7 @@ def installed() {
     state.acactive = false
     state.LocalTstatHSP = 50
     state.LocalTstatCSP = 100
+    state.switchDisable = false
 }
 
 def updated() {
@@ -85,6 +86,10 @@ def initialize() {
         subscribe(LocaltStat, "heatingSetpoint", setTstatHSP)
         subscribe(LocaltStat, "coolingSetpoint", setTstatCSP)
     }
+
+    if (UseSwitchConrol){
+    	subscribe(ControlSwitch, "switch", switchHandler)
+	}
     subscribe(vents, "level", levelHandler)
     log.debug("isAC")
     state.isAC = parent.isAC() //AC enable bits
@@ -272,9 +277,9 @@ def main(){
                     ,defaultValue : "50"
                     ,submitOnChange : true
             	)
+     		}
                 
-                
-
+			section("Location Mode Control") {
           			input(
             			name			: "RunInAllModes"
                			,title			: "Run for all modes" 
@@ -299,6 +304,41 @@ def main(){
                         ) 
                   	}
                 }
+                
+                section("Switch conrtol Mode") {
+          			input(
+            			name			: "UseSwitchConrol"
+               			,title			: "Use a switch to control Keenect Zone" 
+               			,multiple		: false
+               			,required		: true
+               			,type			: "bool"
+                		,submitOnChange	: true
+                		,defaultValue	: false
+            		)   
+                    if(UseSwitchConrol){
+                    	input "ControlSwitch", "capability.switch", required: false
+                        input(
+                            name			: "SwitchDisable"
+                            ,title			: "Switch Disables Keenect" 
+                            ,multiple		: false
+                            ,required		: true
+                            ,type			: "bool"
+                            ,submitOnChange	: true
+                            ,defaultValue	: false
+                        )   
+                        input(
+                                name			: "ControlSwitchVO"
+                                ,title			: "Percent open for the vent when Switch Disables Zone"
+                                ,multiple		: false
+                                ,required		: false
+                                ,type			: "enum"
+                                ,options 		: FANoptions()
+                                ,defaultValue	: "100"
+                                ,submitOnChange	: false
+                        ) 
+                  	}
+                }
+
             section("Advanced"){
 				def afDesc = "\t" + getTitle("AggressiveTempVentCurve") + "\n\t" + getTitle("ventCloseWait") + "\n\t" + getTitle("logLevelSummary") + "\n\t" + getTitle("sendEventsToNotificationsSummary") + "\n\t" + getTitle("pressureControl")
                 href( "advanced"
@@ -1154,27 +1194,13 @@ def isIntegrator(){
 def evaluateVentsOpening(){
 
 	logger(10,"info","evaluateVentsOpening: Setting vent Params")
+    
 	def mainStateLocal = state.mainState ?: ""
     def allModes = settings.modes
 	def ventmode = "none"
+    ventmode = getVentMode()
 	Map VentParams = [:]
-	logger(40,"debug","evaluateVentsOpening:mainStateLocal: ${mainStateLocal}")
-	logger(40,"debug","evaluateVentsOpening:state.mainFan: ${state.mainFan}")
-	if (mainStateLocal == "idle"){
-		if (state.mainFan){
-			ventmode = "fan only"
-		}
-	} else{
-		ventmode = mainStateLocal
-	}
-    if (settings.RunInAllModes||allModes.contains(location.mode)) {
-		logger(40,"debug","in mode")
-    } else {
-    	logger(40,"debug","not in mode")
-        ventmode = "Out of Mode"
-    }
-		logger(40,"debug","evaluateVentsOpening:ventmode: ${ventmode}")
-    
+   
 	switch (ventmode){
     	case "heat" :
 			VentParams = SetHeatVentParams()
@@ -1187,6 +1213,9 @@ def evaluateVentsOpening(){
         	break
     	case "Out of Mode" :
 			VentParams = SetOutofModeVentParams()
+        	break
+    	case "Switch Disable" :
+			VentParams = SetSwitchDisableParams()
         	break
     	case "none" :
 			VentParams = SetErrorVentParams()
@@ -1207,6 +1236,31 @@ def evaluateVentsOpening(){
 	setVents(VentParams.ventOpening)
 }
 
+//zone control methods
+def getVentMode(){
+	logger(10,"info","getMode: Starting")
+    def ventmode = "none"
+	def mainStateLocal = state.mainState ?: ""
+    def allModes = settings.modes
+    logger(40,"debug","getMode:mainStateLocal: ${mainStateLocal}")
+	logger(40,"debug","getMode:state.mainFan: ${state.mainFan}")
+	if (mainStateLocal == "idle"){
+		if (state.mainFan){
+			ventmode = "fan only"
+		}
+	} else{
+		ventmode = mainStateLocal
+	}
+    if (settings.RunInAllModes||allModes.contains(location.mode)) {
+    } else {
+        ventmode = "Out of Mode"
+    }
+    if (state.switchDisable&&settings.UseSwitchConrol){
+    ventmode = "Switch Disable"
+    }
+	logger(40,"debug","evaluateVentsOpening:ventmode: ${ventmode}")
+    return ventmode
+}
 //	int tempDelta
 //	int ventSlope
 //	int ventIntercept
@@ -1378,12 +1432,55 @@ def SetOutofModeVentParams(){
 	resultMap.allowReduction = false
 	return resultMap
 }
+
+def SetSwitchDisableParams(){
+	Map resultMap = [:]
+	logger(40,"debug","Setting vent Params Switch Disable")
+	def zoneTempLocal = state.zoneTemp
+	resultMap.tempDelta = 0.1
+	resultMap.ventSlope = 0	
+	resultMap.ventIntercept = settings.ControlSwitchVO.toInteger()
+	resultMap.maxVentOpen = 100
+	resultMap.minVentOpen = 0
+	resultMap.ventOpening = 50
+	resultMap.allowReduction = false
+	return resultMap
+}
 def setTstatHSP(evt){
 	logger(40,"debug","setTstatHSP- evt name: ${evt.name}, value: ${evt.value}")
     state.LocalTstatHSP = evt.value
+    if (state.mainOn || state.mainFan){
+    	logger(30,"debug","setTstatCSP- run evaluate")
+    	zoneEvaluate([msg:"temp", data:["tempChange"]])	
+    }    
     
 }
 def setTstatCSP(evt){
 	logger(40,"debug","setTstatHSP- evt name: ${evt.name}, value: ${evt.value}")
-    state.LocalTstatCSP = evt.value
+    state.LocalTstatHSP = evt.value
+    if (state.mainOn || state.mainFan){
+    	logger(30,"debug","setTstatHSP- run evaluate")
+    	zoneEvaluate([msg:"temp", data:["tempChange"]])	
+    }    
+}
+def switchHandler(evt){
+	logger(40,"debug","switchHandler- evt name: ${evt.name}, value: ${evt.value}")
+    if (evt.value == "on") {
+    	if (settings.SwitchDisable){
+    		state.switchDisable = true
+       	} else{
+    		state.switchDisable = false
+      	}
+    } else if (evt.value == "off") {
+    	if (settings.SwitchDisable){
+    		state.switchDisable = false
+       	} else{
+    		state.switchDisable = true
+      	}
+	}
+    if (state.mainOn || state.mainFan){
+    	logger(30,"debug","switchHandler- run evaluate")
+    	zoneEvaluate([msg:"temp", data:["tempChange"]])	
+    }    
+
 }
