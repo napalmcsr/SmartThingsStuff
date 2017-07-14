@@ -1201,6 +1201,7 @@ def evaluateVentsOpening(){
     ventmode = getVentMode()
 	Map VentParams = [:]
    
+    logger(40,"debug","evaluateVentsOpening:ventmode: ${ventmode}")
 	switch (ventmode){
     	case "heat" :
 			VentParams = SetHeatVentParams()
@@ -1457,7 +1458,7 @@ def setTstatHSP(evt){
 }
 def setTstatCSP(evt){
 	logger(40,"debug","setTstatHSP- evt name: ${evt.name}, value: ${evt.value}")
-    state.LocalTstatHSP = evt.value
+    state.LocalTstatCSP = evt.value
     if (state.mainOn || state.mainFan){
     	logger(30,"debug","setTstatHSP- run evaluate")
     	zoneEvaluate([msg:"temp", data:["tempChange"]])	
