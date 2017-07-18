@@ -1,4 +1,6 @@
 /**
+ *  V3.2.0 Changed to having 1 master mode passed to zones
+ *  V3.1.0 Changed zone to map control
  *  V3.0.0 Change control algo to use a single map and control/add mode control/start remove ecobee specific
  *	V2.7.0 Add humidifer fan control feature
  *	V2.6.0 equipment status for humidifier 
@@ -59,7 +61,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vParent = "3.1"
+	state.vParent = "3.2"
 	state.etf = app.id == '07d1abe4-352f-441e-a6bd-681929b217e4' //5
 	
     //subscribe(tStat, "thermostatSetpoint", notifyZones) doesn't look like we need to use this
@@ -80,15 +82,16 @@ def initialize() {
     state.cool =false
     state.night = false
     subscribe(nightmode,"switch",nighthandler)
-	state.mainState = state.mainState ?: getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
-    state.mainMode = state.mainMode ?: getNormalizedOS(tStat.currentValue("thermostatMode"))
-    state.mainFan = state.mainFan ?: tStat.currentValue("thermostatFanMode")
-       if (isAC()){ state.mainCSP = state.mainCSP ?: tStat.currentValue("coolingSetpoint").toFloat()
-    
+    state.mainMode = state.mainMode ?: tStat.currentValue("thermostatMode")
+	state.mainState = state.mainState ?: getMainTstatState()
+    if (state.mainMode.toUpperCase().contains("AUTO")||state.mainMode.toUpperCase().contains("COOL")){ 
+		state.mainCSP = state.mainCSP ?: tStat.currentValue("coolingSetpoint").toFloat()
     }else {state.mainCSP = state.mainCSP ?: tStat.currentValue("heatingSetpoint").toFloat()
     }
-    
-    state.mainHSP = state.mainHSP ?: tStat.currentValue("heatingSetpoint").toFloat()
+    if (state.mainMode.toUpperCase().contains("AUTO")||state.mainMode.toUpperCase().contains("HEAT")){ 
+		state.mainHSP = state.mainHSP ?: tStat.currentValue("heatingSetpoint").toFloat()
+    }else {state.mainHSP = state.mainHSP ?: tStat.currentValue("coolingSetpoint").toFloat()
+    }
     state.mainTemp = state.mainTemp ?: tempSensors.currentValue("temperature").toFloat()
     state.voBackoff = 0
     checkNotify(null)
@@ -402,42 +405,25 @@ def getReport(rptName){
 def checkNotify(evt){
     logger(40,"debug","checkNotify:enter- ")
     logger(40,"debug","checkNotify:evt: ${evt}")
+	logger(40,"debug","checkNotify:MainTstatState: ${getMainTstatState()}")
 	def tempStr = ''
     def tempFloat = 0.0
     def tempBool = false
-    def isSetback = false
     def delay = 0
     if (settings.fanRunOn) delay = settings.fanRunOn.toInteger()
     def mainTemp = tempSensors.currentValue("temperature").toFloat()
+    state.mainTemp = mainTemp
 	
     //thermostat state
-	tempStr = getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
+	tempStr = getMainTstatState()
+	logger(40,"debug","checkNotify:MainTstatState: ${getMainTstatState()}")
 	def mainState = state.mainState
     def mainStateChange = mainState != tempStr
     mainState = tempStr
+	state.mainState = mainState
+	def mainOn = mainState != "IDLE"
     logger(40,"info","checkNotify- mainState: ${mainState}, mainStateChange: ${mainStateChange}")
-   tempStr = getNormalizedOSES(tStat.currentValue("equipmentStatus"))
-   def mainES = state.mainES
-   def mainESChange = mainES != tempStr
-   mainES = tempStr
-            logger(40,"info","checkNotify- mainequipmentStatus: ${mainES}, mainequipmentStatusChange: ${mainESChange}")
-
-        //thermostat fan
-        
-	tempStr = tStat.currentValue("thermostatFanMode")
-	def mainFan = state.mainFan
-    logger(40,"info","checkNotify- mainFan: ${mainFan}, temStr: ${tempStr}")
-    def mainFanChange = mainFan != tempStr
-    mainFan = tempStr
-    logger(40,"info","checkNotify- mainFan: ${mainFan}, mainFanChange: ${mainFanChange}")
-    
-    //thermostate mode
-    tempStr = getNormalizedOS(tStat.currentValue("thermostatMode"))
-    def mainMode = state.mainMode
-    def mainModeChange = mainMode != tempStr
-    mainMode = tempStr
-    logger(40,"info","checkNotify- mainMode: ${mainMode}, mainModeChange: ${mainModeChange}")
-
+  
 	//cooling set point
     def mainCSPChange = false
     def mainCSP
@@ -445,8 +431,8 @@ def checkNotify(evt){
 		tempFloat = tStat.currentValue("coolingSetpoint").toFloat()
     	mainCSP = state.mainCSP
     	mainCSPChange = mainCSP != tempFloat
-    	isSetback = tempFloat > mainCSP
     	mainCSP = tempFloat
+		state.mainCSP = mainCSP
     	logger(40,"info","checkNotify- mainCSP: ${mainCSP}, mainCSPChange: ${mainCSPChange}")
     }
 
@@ -454,95 +440,59 @@ def checkNotify(evt){
 	tempFloat = tStat.currentValue("heatingSetpoint").toFloat()
     def mainHSP = state.mainHSP
     def mainHSPChange = mainHSP != tempFloat
-    isSetback = tempFloat < mainHSP
     mainHSP = tempFloat
+    state.mainHSP = mainHSP
     logger(40,"info","checkNotify- mainHSP: ${mainHSP}, mainHSPChange: ${mainHSPChange}")
     
-   def mainOn = mainState != "idle" //||"fan only"
-   if (mainState == "fan only"){
-   mainOn = true
-   }
-    
-    logger(40,"info","checkNotify- mainState: ${mainState}")
-  logger(40,"info","checkNotify- mainOn: ${mainOn}")
-    //always update state vars
-    state.mainES =mainES
-    state.mainState = mainState
-    state.mainFan = mainFan
-  logger(40,"info","checkNotify- mainFan: ${mainFan}")
-  logger(40,"info","checkNotify- state.mainFan: ${state.mainFan}")
-    state.mainMode = mainMode
-    if (isAC()) state.mainCSP = mainCSP
-    state.mainHSP = mainHSP
-    state.mainTemp = mainTemp
-    
+  
+    //Set indicators and start and stop timing for reports
     if(mainStateChange){
-    if(mainState == "idle"){
-      state.cool =false
-      if(indicators){
-    ACind.off()
-    Fanind.off()
-    Heatind.off()
-    }
-    }
-    if(mainState == "off"){
-      state.cool =false
-      if(indicators){
-    ACind.off()
-    Fanind.off() 
-    Heatind.off()
-    }
-    }
-    if(mainState == "cool"){
-      state.cool = true
-      if(indicators){
-ACind.on()
-}
-
-    }
-    if(mainState == "heat"){
-if(indicators){
-    Heatind.on()
-    }
-         if(state.night == false){
-        }
-    }
-    if(mainState == "fan only"){
-if(indicators){
-    Fanind.on()
-    Heatind.off()
-    ACind.off()
-    }
-        if(state.cool == false){
- if(state.night == false){
-        }
-       }
-      
-    }
+		if(indicators){
+			switch (mainState){
+				case "HEAT" :
+						ACind.off()
+						Fanind.off()
+						Heatind.on()
+					break
+				case "COOL" :
+						ACind.on()
+						Fanind.off()
+						Heatind.off()
+					break
+				case "FAN" :
+						ACind.off()
+						Fanind.on()
+						Heatind.off()
+					break
+				default:
+						ACind.off()
+						Fanind.off()
+						Heatind.off()
+					break
+			}
+		}
+		if (mainOn){
+			//main start
+			state.startTime = now() + location.timeZone.rawOffset
+			state.startTemp = mainTemp
+			state.voBackoff = 0
+			state.reduceoutput = false
+		
+			ChildNormalOutput()
+		} else{
+			//main end
+			state.endTime = now() + location.timeZone.rawOffset
+			state.endTemp = mainTemp
+			state.voBackoff = 0
+			state.reduceoutput = false
+			logger(10,"info","write log info cycle ended")
+		}
     }
     
     
-    //update cycle data
-    if (mainStateChange && mainOn){
-    	//main start
-        state.startTime = now() + location.timeZone.rawOffset
-        state.startTemp = mainTemp
-        state.voBackoff = 0
-	state.reduceoutput = false
     
-    ChildNormalOutput()
-
-    } else if (mainStateChange && !mainOn){
-    	//main end
-        state.endTime = now() + location.timeZone.rawOffset
-        state.endTemp = mainTemp
-        state.voBackoff = 0
-        	state.reduceoutput = false
-        logger(10,"info","write log info cycle ended")
-    } 
-    
-    if (mainStateChange || mainModeChange || mainCSPChange || mainHSPChange||mainFanChange ||mainESChange){
-    	def dataSet = [msg:"stat",data:[initRequest:false,mainState:mainState,mainStateChange:mainStateChange,mainMode:mainMode,mainModeChange:mainModeChange,mainFan:mainFan,mainFanChange:mainFanChange,mainCSP:mainCSP,mainCSPChange:mainCSPChange,mainHSP:mainHSP,mainHSPChange:mainHSPChange,mainOn:mainOn,mainES:mainES]]
+    if (mainStateChange || mainCSPChange || mainHSPChange){
+    	def dataSet = [msg:"stat",data:[initRequest:false,mainState:mainState,mainStateChange:mainStateChange,mainCSP:mainCSP,mainCSPChange:mainCSPChange,mainHSP:mainHSP,mainHSPChange:mainHSPChange,mainOn:mainOn]]
         if (dataSet == state.dataSet){
         	//dup dataset..., should never ever happen
             logger(30,"warn","duplicate dataset, zones will not be notified... dataSet: ${state.dataSet}")
@@ -552,9 +502,8 @@ if(indicators){
         	if (mainModeChange) logger(10,"info","Main HVAC mode changed to: ${mainMode}")
         	if (mainCSPChange && isAC()) logger(10,"info","Main HVAC cooling setpoint changed to: ${mainCSP}")
         	if (mainHSPChange) logger(10,"info","Main HVAC heating setpoint changed to: ${mainHSP}")
-            if (mainESChannge) logger(10,"info","Main HVAC equipment status changed to: ${mainES}")
             state.dataSet = dataSet
-            if (delay > 0 && mainState == "idle"){
+            if (delay > 0 && mainState == "IDLE"){
 				logger(10,"info", "Mainstate ${mainState}")
                 logger(10,"info", "Zone notification is scheduled in ${delay} delay")
 				runIn(delay,notifyZones)
@@ -568,6 +517,65 @@ if(indicators){
     logger(40,"debug","checkNotify:exit- ")
 }
 
+
+def GetMasterData(){
+ 	//initial data request for new zone
+     logger(10,"info", "Zone notification now")
+     def mainState = state.mainState
+     def mainMode = state.mainMode
+     def mainCSP =state.mainCSP
+     def mainHSP = state.mainHSP
+     def mainOn = mainState != "IDLE"
+ 	def dataSet = [msg:"stat",data:[initRequest:true,mainState:mainState,mainMode:mainMode,mainCSP:mainCSP,mainHSP:mainHSP,mainOn:mainOn,mainES:mainES]]
+     logger(10,"debug","notifyZone:enter- map:${dataSet}")
+     return dataSet
+ }
+ 
+def getMainTstatState(){
+	def TstatState = tStat.currentValue("thermostatOperatingState")
+	if (TstatState!=null){
+		TstatState = TstatState.toUpperCase()
+	} else {
+    	TstatState = "NULL"
+    }
+     logger(10,"debug","getMainTstatState:TstatState: ${TstatState}")
+	def mainES = tStat.currentValue("equipmentStatus")
+	if (mainES!=null){
+		mainES = mainES.toUpperCase()
+	} else {
+    	mainES = "NULL"
+    }
+     logger(10,"debug","getMainTstatState:mainES: ${mainES}")
+	def mainMode = tStat.currentValue("thermostatMode")
+	if (mainMode!=null){
+		mainMode = mainMode.toUpperCase()
+	} else {
+    	mainMode = "NULL"
+    }
+     logger(10,"debug","getMainTstatState:mainMode: ${mainMode}")
+	 state.mainMode = mainMode
+	def mainFanMode = tStat.currentValue("thermostatFanMode")
+	if (mainFanMode!=null){
+		mainFanMode = mainFanMode.toUpperCase()
+	} else {
+    	mainFanMode = "NULL"
+    }
+     logger(10,"debug","getMainTstatState:mainFanMode: ${mainFanMode}")
+	 
+	if (TstatState.contains("HEAT")||mainES.contains("HEAT")) {
+		TstatState = "HEAT"
+	} else if (TstatState.contains("COOL")||mainES.contains("COOL")){
+		TstatState = "COOL"
+	} else if (mainES.contains("HUMIDIFIER")){
+    	TstatState = "HUMIDIFIER"  
+	}else if (TstatState.contains("FAN ONLY")||mainES.contains("FAN RUNNING")||mainFanMode.contains("ON")){
+    	TstatState = "FAN"  
+	} 
+	
+	return TstatState
+ }
+ 
+ 
 def notifyZones(altDS){
     logger(40,"debug","notifyZones:enter- ")
     def dataSet 
@@ -651,47 +659,6 @@ outputreductionind.setLevel(15)
    childApps.each {child ->
     	child.allzoneoffset(true)}
 }
-
-
-
-def getNormalizedOS(os){
-	def normOS = ""
-    if (os == "heating" || os == "pending heat" || os == "heat" || os == "emergency heat"){
-    	normOS = "heat"
-       } else if (os == "fan only"){
-    	normOS = "fan only"  
-        
-    } else if (os == "cooling" || os == "pending cool" || os == "cool"){
-    	normOS = "cool"
-    } else if (os == "auto"){
-    	normOS = "auto"
-    } else if (os == "off"){
-    	normOS = "off"
-    } else {
-    	normOS = "idle"
-    }
-    return normOS
-}
-// add more for cooling
-def getNormalizedOSES(os){
-	def normOS = ""
-    if (os == "fan,humidifier running"){
-    	normOS = "humidifier"
-       }else if (os == "auxHeat1,fan running" || os == "auxHeat1"|| os == "auxHeat1,humidifier running"	|| os == "auxHeat1 running" || os == "emergency heat" || os =="auxHeat1,fan,humidifier running"	 ){
-    	normOS = "heat"
-       } else if (os == "fan running"){
-    	normOS = "fan only"  
-        
-    } else if (os == "cooling" || os == "pending cool" || os == "cool"){
-    	normOS = "cool"
-    } else if (os == "off"){
-    	normOS = "off"
-    } else {
-    	normOS = "idle"
-    }
-    return normOS
-}
-
 
 
 def getVersionInfo(){
@@ -792,18 +759,3 @@ def getTitle(name){
 	}
     return title
 }
-
-def GetMasterData(){
- 	//initial data request for new zone
-     logger(10,"info", "Zone notification now")
-     def mainState = getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
-     def mainES = getNormalizedOSES(tStat.currentValue("equipmentStatus"))
-     def mainMode = getNormalizedOS(tStat.currentValue("thermostatMode"))
-     def mainCSP 
-     if (isAC()) mainCSP = tStat.currentValue("coolingSetpoint").toFloat()
-     def mainHSP = tStat.currentValue("heatingSetpoint").toFloat()
-     def mainOn = mainState != "idle"
- 	def dataSet = [msg:"stat",data:[initRequest:true,mainState:mainState,mainMode:mainMode,mainCSP:mainCSP,mainHSP:mainHSP,mainOn:mainOn,mainES:mainES]]
-     logger(10,"debug","notifyZone:enter- map:${dataSet}")
-     return dataSet
- }
