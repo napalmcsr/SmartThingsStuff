@@ -1330,7 +1330,7 @@ def SetCoolVentParams(){
 			zoneCSPLocal = settings.staticCSP.toInteger()
         	break
     	case "thermostat" :
-			zoneCSPLocal = state.LocalTstatCSP.toInteger()
+			zoneCSPLocal = state.LocalTstatCSP.toFloat().toInteger()
         	break
         }
 	logger(40,"debug","SetCoolVentParams- zoneCSPLocal: ${zoneCSPLocal}")
@@ -1343,7 +1343,7 @@ def SetCoolVentParams(){
 		resultMap.ventSlope = 200
 		resultMap.ventIntercept = 60
 	} else{
-		resultMap.ventSlope = 100
+		resultMap.ventSlope = 70
 		resultMap.ventIntercept = 30
 	}
 	resultMap.maxVentOpen = settings.maxVoC.toInteger()
@@ -1366,7 +1366,7 @@ def SetHeatVentParams(){
 			zoneHSPLocal = settings.staticHSP.toInteger()
         	break
     	case "thermostat" :
-			zoneHSPLocal = state.LocalTstatHSP.toInteger()
+			zoneHSPLocal = state.LocalTstatHSP.toFloat().toInteger()
         	break
         }
     state.activeSetPoint = zoneHSPLocal
