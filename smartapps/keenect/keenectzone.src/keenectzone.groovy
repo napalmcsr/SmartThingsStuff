@@ -66,9 +66,14 @@ def installed() {
     settings.staticCSP = 70
     state?.integrator= 0 
     state.acactive = false
+    state.running = false
     state.LocalTstatHSP = 50
     state.LocalTstatCSP = 100
+    state.zoneneedofset = false
+    state.parentneedoffset = false
+    state.outputreduction =false
     state.switchDisable = false
+    state.VentMode = "Install"
 }
 
 def updated() {
@@ -546,6 +551,7 @@ def zoneEvaluate(params){
                         logger(10,"info","zoneEvaluate- data.mainState: ${data.mainState}, data.mainOn: ${data.mainOn}")  
                 	if (data.mainOn && !zoneDisabledLocal){
                         evaluateVents = true
+                        runningLocal = true
                         logger(30,"info","zoneEvaluate- system start up, evaluate: ${evaluateVents}")
                         logger(10,"info","Main HVAC is on and ${data.mainState}")
 						//system shut down
@@ -628,6 +634,8 @@ def zoneEvaluate(params){
     	 state.AggressiveTempVentCurveActive = true
 	}
     //write state
+    logger(30,"debug","zoneEvaluate- Writing Params")
+
     state.mainState = mainStateLocal
     state.mainMode = mainModeLocal
 	state.mainHSP = mainHSPLocal
@@ -637,6 +645,7 @@ def zoneEvaluate(params){
     state.zoneHSP = zoneHSPLocal
     state.zoneTemp = zoneTempLocal
 	state.zoneDisabled = zoneDisabledLocal
+ 	state.running = runningLocal
 	if (evaluateVents){
 		def outred = false  
 		if (Rvents2== true){
@@ -653,6 +662,9 @@ def zoneEvaluate(params){
 	} else {
 		logger(10,"info","Nothing to do, main HVAC is not running, mainState: ${mainStateLocal}, zoneTemp: ${zoneTempLocal}, zoneHSP: ${zoneHSPLocal}, zoneCSP: ${zoneCSPLocal}")
 	}
+/*
+    logger(30,"debug","zoneEvaluate- Check for reductions")
+
 	if (state.fanonly == false){                                                               
 		//  log.info "output reduction ${state.outputreduction} zone need ${state.zoneneedofset}"
 		if (state.acactive == true){
@@ -673,8 +685,7 @@ def zoneEvaluate(params){
 		parent.manageoutputreduction(false)
 		logger (30,"info", "CHILD Clearing System Reduced Ouput")
 	}      
- 	state.running = runningLocal
-	state.zoneVoLocal =  VoLocal
+    */
     logger(40,"debug","zoneEvaluate:exit- ")
 }
 
@@ -871,21 +882,15 @@ def setVents(newVo){
         }
         log.info("setVents- [${vent.displayName}], changeRequired: ${changeMe}, current vo: ${crntVo}, new vo: ${newVo}")
     }
-    
-    def mqText = ""
-    if (state.mainQuick && settings.AggressiveTempVentCurve && newVo == 100){
-    	mqText = ", quick recovery active"
-    }
-    if (changeRequired) result = ", setting vents to ${newVo}%${mqText}"
-    else result = ", vents at ${newVo}%${mqText}"
- 	return result
     logger(40,"debug","setVents:exit- ")
 }
 
 def ventcheck(){
 	//if (state.enabled == true){
+    logger(40,"debug","ventcheck:enter- ")
 		def newVo=state.ventcheck
 		setVents(newVo)
+    logger(40,"debug","ventcheck:exit- ")
 	//}
 }
 
@@ -923,14 +928,14 @@ def setRVents(newVo){
 				}
 			}
 			if (changeMe || isOff){
-			if (Rventsenabled == true){
-				logger(10,"warn","rvents true")
-				log.info("XX NewVO- [${newVo}]")
-				changeRequired = true
-				Rvents2.setLevel(newVo)
-				state.Rventcheck=newVo
-				runIn(60*1, Rventcheck)
-				}
+                if (Rventsenabled == true){
+                    logger(10,"warn","rvents true")
+                    log.info("XX NewVO- [${newVo}]")
+                    changeRequired = true
+                    Rvents2.setLevel(newVo)
+                    state.Rventcheck=newVo
+                    runIn(60*1, Rventcheck)
+                }
 			}
 			log.info("setVents- [${Rvent2.displayName}], changeRequired: ${changeMe}, new vo: ${newVo}, current vo: ${crntVo}")
 		}
@@ -1119,7 +1124,7 @@ def getZoneState(){
     else s = false
     def qr = false
     if (settings.AggressiveTempVentCurve && state.AggressiveTempVentCurveActive && s) qr = true
-		def report =  "\n\trunning: ${s}\n\tqr active: ${qr}\n\tcurrent temp: ${tempStr(state.zoneTemp)}\n\tset point: ${tempStr(state.activeSetPoint)}"
+		def report =  "\n\tVentMode: ${state.VentMode}\n\trunning: ${s}\n\tqr active: ${qr}\n\tcurrent temp: ${tempStr(state.zoneTemp)}\n\tset point: ${tempStr(state.activeSetPoint)}"
 		vents.each{ vent ->
  		def b = vent.currentValue("battery") ? vent.currentValue("battery") + "%" : "No data yet"
         def l = vent.currentValue("level").toInteger()
@@ -1175,7 +1180,7 @@ def integrator(){
 			log.info "new state.integrator ${state.integrator}"
 
 			*/                   
-			state.endReport = "\n\tsetpoint: ${tempStr(asp)}\n\tend temp: ${tempStr(zoneTempLocal)}\n\tvariance: ${tempStr(d)}\n\tvent levels: ${vents.currentValue("level")}"        
+			state.endReport = "\n\tVentMode: ${state.VentMode}\n\tsetpoint: ${tempStr(asp)}\n\tend temp: ${tempStr(zoneTempLocal)}\n\tvariance: ${tempStr(d)}\n\tvent levels: ${vents.currentValue("level")}"        
 		//}else {
 		//log.info"fan only no chage of state.integrator ${state.integrator}"
 	//}
@@ -1197,7 +1202,7 @@ def evaluateVentsOpening(){
     ventmode = getVentMode()
 	Map VentParams = [:]
    
-    logger(40,"debug","evaluateVentsOpening:ventmode: ${ventmode}")
+    logger(40,"debug","evaluateVentsOpening: ventmode: ${ventmode}")
 	switch (ventmode){
     	case "HEAT" :
 			VentParams = SetHeatVentParams()
@@ -1220,9 +1225,7 @@ def evaluateVentsOpening(){
     	default :
 			VentParams = SetErrorVentParams()
         	break
-            
-            
-            
+               
 	} 
 	logger(10,"info","evaluateVentsOpening:Calculate Vent Opening")
 	CalculteVent(VentParams)
@@ -1233,14 +1236,16 @@ def evaluateVentsOpening(){
         logger(40,"debug","evaluateVentsOpening:VentParams.ventOpening after reduction checks: ${VentParams.ventOpening}")
 	}
 	logger(10,"info","evaluateVentsOpening:Set The Vent")
+	state.zoneVoLocal =  VentParams.ventOpening
 	setVents(VentParams.ventOpening)
+	logger(10,"info","evaluateVentsOpening: --EXIT")
 }
 
 //zone control methods
 def getVentMode(){
     def allModes = settings.modes
 	def ventmode = state.mainState ?: ""
-    logger(40,"debug","getMode:ventmode: ${ventmode}")
+	logger(40,"debug","GetVentMode: ventmode: ${ventmode}")
     if (settings.RunInAllModes||allModes.contains(location.mode)) {
     } else {
         ventmode = "OUT OF MODE"
@@ -1248,7 +1253,7 @@ def getVentMode(){
     if (state.switchDisable&&settings.UseSwitchConrol){
 		ventmode = "SWITCH DISABLE"
     }
-	logger(40,"debug","evaluateVentsOpening:ventmode: ${ventmode}")
+    state.VentMode = ventmode
     return ventmode
 }
 
@@ -1275,16 +1280,14 @@ def CheckReductions(Map VentParams){
     if (VentParams.tempDelta>1.4){
         state.zoneneedofset = true
         logger(30,"info","CHILD zone needs offset")
+    }else{
+        state.zoneneedofset = false
+        logger(30,"info","CHILD zone does not need offset")
     }
     if (VentParams.tempDelta>2){
         state.parentneedoffset = true
         logger(30,"info","Parent needs offset")
-    }
-    if (VentParams.tempDelta<1.4){
-        state.zoneneedofset = false
-        logger(30,"info","CHILD zone does not need offset")
-    }
-    if (VentParams.tempDelta<2){
+    }else{
         state.parentneedoffset = false
         logger(30,"info","Parent does not need offset")
     }

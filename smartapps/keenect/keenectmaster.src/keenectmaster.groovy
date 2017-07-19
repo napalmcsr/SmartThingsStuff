@@ -473,6 +473,8 @@ def checkNotify(evt){
 		}
 		if (mainOn){
 			//main start
+			logger(10,"info","start log info cycle ended")
+            
 			state.startTime = now() + location.timeZone.rawOffset
 			state.startTemp = mainTemp
 			state.voBackoff = 0
