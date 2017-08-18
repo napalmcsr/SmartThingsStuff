@@ -121,10 +121,6 @@ def main(){
                 )      
         	}
 		    section("Devices in Zone"){
-                /*
-				only stock device types work in the list below???
-                ticket submitted, as this should work, and seems to work for everyone except me...
-				*/
                 input(
                     name			: "vents"
                     ,title			: "Keen vents in this zone:"
@@ -691,19 +687,7 @@ def zoneEvaluate(params){
 
 
 //event handlers
-def obstructionHandler(evt){
-    if (evt.value == "obstructed"){
-        def vent = vents.find{it.id == evt.deviceId}
-        logger(10,"warn", "Attempting to clear vent obstruction on: [${vent.displayName}]")
-        vent.clearObstruction()
-    }
- 
-    /*
-      name: "switch",
-      value: "obstructed",
-      call: device.clearObstruction
-    */
-}
+
 def levelHandler(evt){
 	logger(40,"debug","levelHandler:enter- ")
     def ventData = state."${evt.deviceId}"
@@ -735,22 +719,6 @@ def levelHandler(evt){
     }
     
     logger(40,"debug","levelHandler:exit- ")
-}
-
-def zoneDisableHandeler(evt){
-    logger(40,"debug","zoneDisableHandeler- evt name: ${evt.name}, value: ${evt.value}")
-    def climateenabled = evt.value == "on"
-   // if (zoneControlSwitch){
-    	if (climateenabled){
-       		logger(10,"warn", "Zone was enabled via: [${state.currentprogram}]")
-            state.enabled= true
-    	} else {
-       		logger(10,"warn", "Zone was disabled via: [${state.currentprogram}]")
-            state.enabled = false
-    	}
-    	zoneEvaluate([msg:"zoneSwitch"])
-    //}
-    logger(40,"debug","zoneDisableHandeler:exit- ")
 }
 
 def allzoneoffset(val){
@@ -786,20 +754,6 @@ def closeWithOptions(zoneCloseOption){
 	}          	
 }
 
-def fetchZoneControlState(){
-	logger(40,"debug","fetchZoneControlState:enter- ")
-    
-	if (zoneControlSwitch){
-    	state.zoneDisabled = zoneControlSwitch.currentValue("switch") == "off"
-     	logger (30,"info","A zone control switch is selected and zoneDisabled is: ${state.zoneDisabled}")
-    } else {
-    	state.zoneDisabled = false
-        logger (30,"info","A zone control switch is not selected and zoneDisabled is: ${state.zoneDisabled}")
-    }
-    logger(40,"debug","fetchZoneControlState:exit- ")
-    return state.zoneDisabled
-}
-
 def logger(displayLevel,errorLevel,text){
 	//input logLevel 1,2,3,4,-1
     /*
@@ -832,13 +786,6 @@ def logger(displayLevel,errorLevel,text){
         }
     }
 }
-
-def fanonly(){
-state.acactive = false
-	logger(10,"info","set vents to fan only after 2min timeout for heat or ac afterfan run")
-
-}
-
 
 def setVents(newVo){
 	logger(40,"debug","setVents:enter- ")
