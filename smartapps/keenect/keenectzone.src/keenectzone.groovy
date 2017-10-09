@@ -1192,7 +1192,6 @@ def evaluateVentsOpening(){
 def getVentMode(){
     def allModes = settings.modes
 	def ventmode = state.mainState ?: ""
-	logger(40,"debug","GetVentMode: ventmode: ${ventmode}")
     if (settings.RunInAllModes||allModes.contains(location.mode)) {
     } else {
         ventmode = "OUT OF MODE"
@@ -1200,6 +1199,7 @@ def getVentMode(){
     if (state.switchDisable&&settings.UseSwitchConrol){
 		ventmode = "SWITCH DISABLE"
     }
+	logger(40,"debug","GetVentMode: ventmode: ${ventmode}")
     state.VentMode = ventmode
     return ventmode
 }
