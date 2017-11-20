@@ -34,7 +34,9 @@ metadata {
 		fingerprint inClusters: "0000,0001,0003,0402,0500,0020,0B05", outClusters: "0019", manufacturer: "CentraLite", model: "3325"
 		fingerprint inClusters: "0000,0001,0003,0402,0500,0020,0B05", outClusters: "0019", manufacturer: "CentraLite", model: "3326"
 		fingerprint inClusters: "0000,0001,0003,0402,0500,0020,0B05", outClusters: "0019", manufacturer: "CentraLite", model: "3326-L", deviceJoinName: "Iris Motion Sensor"
+		fingerprint inClusters: "0000,0001,0003,0020,0402,0500,0B05", outClusters: "0019", manufacturer: "CentraLite", model: "3328-G", deviceJoinName: "Centralite Micro Motion Sensor"
 		fingerprint inClusters: "0000,0001,0003,000F,0020,0402,0500", outClusters: "0019", manufacturer: "SmartThings", model: "motionv4", deviceJoinName: "Motion Sensor"
+		fingerprint inClusters: "0000,0001,0003,000F,0020,0402,0500", outClusters: "0019", manufacturer: "SmartThings", model: "motionv5", deviceJoinName: "Motion Sensor"
 	}
 
 	simulator {
@@ -59,8 +61,8 @@ metadata {
 	tiles(scale: 2) {
 		multiAttributeTile(name: "motion", type: "generic", width: 6, height: 4) {
 			tileAttribute("device.motion", key: "PRIMARY_CONTROL") {
-				attributeState "active", label: 'motion', icon: "st.motion.motion.active", backgroundColor: "#53a7c0"
-				attributeState "inactive", label: 'no motion', icon: "st.motion.motion.inactive", backgroundColor: "#ffffff"
+				attributeState "active", label: 'motion', icon: "st.motion.motion.active", backgroundColor: "#00A0DC"
+				attributeState "inactive", label: 'no motion', icon: "st.motion.motion.inactive", backgroundColor: "#cccccc"
 			}
 		}
 		valueTile("temperature", "device.temperature", width: 2, height: 2) {
@@ -168,8 +170,13 @@ private def convertTemperature(celsius) {
 }
 private Map parseIasMessage(String description) {
 	ZoneStatus zs = zigbee.parseZoneStatus(description)
-	Map RetMap = (zs.isAlarm1Set() || zs.isAlarm2Set()) ? getMotionResult('active') : getMotionResult('inactive')
-	return RetMap
+
+	translateZoneStatus(zs)
+}
+
+private Map translateZoneStatus(ZoneStatus zs) {
+	// Some sensor models that use this DTH use alarm1 and some use alarm2 to signify motion
+	return (zs.isAlarm1Set() || zs.isAlarm2Set()) ? getMotionResult('active') : getMotionResult('inactive')
 }
 
 private Map getBatteryResult(rawValue) {
@@ -198,13 +205,29 @@ private Map getBatteryResult(rawValue) {
 			def pct = batteryMap[volts]
 			result.value = pct
 		} else {
-			def minVolts = 2.1
-			def maxVolts = 3.0
-			def pct = (volts - minVolts) / (maxVolts - minVolts)
-			def roundedPct = Math.round(pct * 100)
-			if (roundedPct <= 0)
-				roundedPct = 1
-			result.value = Math.min(100, roundedPct)
+			def minVolts = 2.4
+			def maxVolts = 2.7
+			// Get the current battery percentage as a multiplier 0 - 1
+			def curValVolts = Integer.parseInt(device.currentState("battery")?.value ?: "100") / 100.0
+			// Find the corresponding voltage from our range
+			curValVolts = curValVolts * (maxVolts - minVolts) + minVolts
+			// Round to the nearest 10th of a volt
+			curValVolts = Math.round(10 * curValVolts) / 10.0
+			// Only update the battery reading if we don't have a last reading,
+			// OR we have received the same reading twice in a row
+			// OR we don't currently have a battery reading
+			// OR the value we just received is at least 2 steps off from the last reported value
+			if(state?.lastVolts == null || state?.lastVolts == volts || device.currentState("battery")?.value == null || Math.abs(curValVolts - volts) > 0.1) {
+				def pct = (volts - minVolts) / (maxVolts - minVolts)
+				def roundedPct = Math.round(pct * 100)
+				if (roundedPct <= 0)
+					roundedPct = 1
+				result.value = Math.min(100, roundedPct)
+			} else {
+				// Don't update as we want to smooth the battery values
+				result = null
+			}
+			state.lastVolts = volts
 		}
 	}
 
@@ -233,7 +256,8 @@ def refresh() {
 	log.debug "refresh called"
 
 	def refreshCmds = zigbee.readAttribute(zigbee.POWER_CONFIGURATION_CLUSTER, 0x0020) +
-			zigbee.readAttribute(zigbee.TEMPERATURE_MEASUREMENT_CLUSTER, 0x0000)
+			zigbee.readAttribute(zigbee.TEMPERATURE_MEASUREMENT_CLUSTER, 0x0000) +
+			zigbee.readAttribute(zigbee.IAS_ZONE_CLUSTER, zigbee.ATTRIBUTE_IAS_ZONE_STATUS)
 
 	return refreshCmds + zigbee.enrollResponse()
 }
