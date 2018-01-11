@@ -25,7 +25,7 @@ preferences
 {
 	section("Bathroom Devices")
     {
-    	paragraph "NOTE: The humidity sensor you select will need to report about once per minute."
+    	paragraph "NOTE: The humidity sensor you select will need to report about 5 min or less."
 		input "HumiditySensor", "capability.relativeHumidityMeasurement", title: "Humidity Sensor:", required: true
 		input "FanSwitch", "capability.switch", title: "Fan Location:", required: true
     }
@@ -67,9 +67,9 @@ def initialize()
 
 def HumidityHandler(evt)
 {
-    log.debug "running humidity check"
+    log.info "running humidity check"
 	state.humpres = IsHumidityPresent(evt, HumidityIncreaseRate, HumidityThreshold, state.humpres)
-
+	log.info "found humidity = ${state.humpres}"
 	//if the humidity is high (or rising fast) and the fan is off, kick on the fan
     if (state.humpres && FanSwitch.currentValue("switch") == "off")
     {
@@ -154,15 +154,25 @@ def TurnOffFanSwitch()
 
 def IsHumidityPresent(evt, incrate, threshold, currpres)
 {
-    def states = evt.device.eventsSince(new Date((long)(evt.date.getTime() - (21 * 60000))), [all:true, max: 10]).findAll{it.name == "humidity"}
+    
+    def states = evt.device.eventsSince(new Date((long)(evt.date.getTime() - (21*60000)))).findAll{it.name == "humidity"}
                 log.debug "numStates is ${states.size().toString()}"
     
     double lastevtvalue = Double.parseDouble(evt.value.replace("%", ""))
     def lastevtdate = evt.date
-    if(threshold && lastevtvalue >= threshold)
+    
+    	for(int i = 0; i < states.size(); i++)
+        {
+    		log.debug "(DEBUG!!!)  humidity: ${states[i].value}"
+        }
+    if(threshold && (lastevtvalue >= threshold))
     {
     	return true
     }
+    
+    
+    
+    
     
     boolean anyposrate = false
     if (states)
