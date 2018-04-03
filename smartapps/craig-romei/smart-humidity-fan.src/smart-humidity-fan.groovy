@@ -5,7 +5,7 @@
  *    -Uses humidity change rate for rapid response
  *    -Timeout option when manaully controled (for stench mitigation)
  *
- *  Copyright 2015 John Fullman
+ *  Copyright 2018 Craig Romei
  *  GNU General Public License v2 (https://www.gnu.org/licenses/gpl-2.0.txt)
  *
  */
