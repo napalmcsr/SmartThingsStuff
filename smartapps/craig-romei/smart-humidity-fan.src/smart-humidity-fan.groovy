@@ -90,7 +90,7 @@ def HumidityHandler(evt)
             }
             else
             {
-                runIn(60 * HumidityDropTimeout, TurnOffFanSwitchCheckHumidity)
+                runIn(60 * HumidityDropTimeout.tointeger(), TurnOffFanSwitchCheckHumidity)
             }
         }
         state.AutomaticallyTurnedOn = false
@@ -113,7 +113,7 @@ def FanSwitchHandler(evt)
                     }
                     else
                     {
-                        runIn(60 * ManualOffMinutes, TurnOffFanSwitch)
+                        runIn(60 * ManualOffMinutes.tointeger(), TurnOffFanSwitch)
                     }
                 }
 			    state.AutomaticallyTurnedOn = false
